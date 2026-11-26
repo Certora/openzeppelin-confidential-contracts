@@ -5,9 +5,7 @@ summarize what the specs verify.
 
 The specs cover `ERC7984ERC20Wrapper`
 ([contracts/token/ERC7984/extensions/ERC7984ERC20Wrapper.sol](../contracts/token/ERC7984/extensions/ERC7984ERC20Wrapper.sol))
-and the `ERC7984` confidential token it extends, at `master` d9927be (2026-11-25). They are a port of the Certora specs
-for Zama's `ConfidentialWrapper`, which copies `ERC7984` and `ERC7984ERC20Wrapper` at v0.4.0.
-[PORT.md](specs/ERC7984ERC20Wrapper/PORT.md) lists which rules were ported as is, adapted or dropped.
+and the `ERC7984` confidential token it extends, at `master` d9927be (2026-11-25).
 
 Documentation for the Certora Prover and the specification language is available [here](https://docs.certora.com).
 
@@ -72,16 +70,16 @@ The slowest rules take about 7 to 8 minutes each.
 The contracts are verified unmodified: no patches are applied. The rules run on harness contracts found in the
 `fv/harnesses` directory:
 
-- `ERC7984ERC20WrapperHarness.sol` is the smallest deployable `ERC7984ERC20Wrapper`: the wrapper with
-  `ZamaEthereumConfig` and empty name, symbol and contract URI. The mock in `contracts/mocks` is not used, because its
-  `$_mint` and `$_burn` would let any caller change the supply.
+- `ERC7984ERC20WrapperHarness.sol` is the smallest deployable `ERC7984ERC20Wrapper`: the wrapper with the same FHEVM
+  configuration as the mock in `contracts/mocks`, and empty name, symbol and contract URI. The mock itself is not used,
+  because its `$_mint` and `$_burn` would let any caller change the supply.
 - `WrapperSpecHelper.sol` computes pure values that CVL cannot, such as interface ids and the ERC-1363 data that names a
   recipient.
 - `UnderlyingDecimalsMock.sol` is a token with a configurable `decimals()`, used by the probes.
 
 The specs name the wrapper's storage fields and entry points. If those change, update
-`setup/ledger.spec` (storage hooks) and `setup/transfers.spec` (transfer entry points) first, and record the new code
-version in [PORT.md](specs/ERC7984ERC20Wrapper/PORT.md).
+`setup/ledger.spec` (storage hooks) and `setup/transfers.spec` (transfer entry points) first, and update the code
+version at the top of this file.
 
 ## Results
 
@@ -91,7 +89,7 @@ Results as of 2026-11-26. Each result links to the prover report of the rule's b
 |---|---|
 | Rules and invariants | 63, in 7 configurations |
 | Verified | 61, including 3 `satisfy` witnesses that found the scenario |
-| Violated | 2, both open questions carried over from the Zama port (see below) |
+| Violated | 2, both open questions (see below) |
 | Probes (expected VIOLATED, not properties) | 2 |
 
 Every result holds under the assumptions in [ASSUMPTIONS.md](ASSUMPTIONS.md), summarized [below](#assumptions).
@@ -110,14 +108,13 @@ Every result holds under the assumptions in [ASSUMPTIONS.md](ASSUMPTIONS.md), su
 
 ### Open questions
 
-Both violations reproduce findings of the Zama port. Each rule states one reading of the intended behaviour. The
-code does not follow that reading, and it is for OpenZeppelin to say which reading is intended.
+Each violated rule states one reading of the intended behaviour. The code does not follow that reading, and it is for
+OpenZeppelin to say which reading is intended.
 
 #### 1. A transient permission is enough to make an amount publicly decryptable
 
 Rule `transientAllowanceCannotBeEscalatedToPublicDisclosure` (`acl.spec`) is
-[VIOLATED](https://prover.certora.com/output/6893/56862ffe3ede4e74ab3fe74f2c46a9d0?anonymousKey=e3313e8688f5576364207123adad93ac5347b093). Zama port findings TOK-11 and
-TOK-18.
+[VIOLATED](https://prover.certora.com/output/6893/56862ffe3ede4e74ab3fe74f2c46a9d0?anonymousKey=e3313e8688f5576364207123adad93ac5347b093).
 
 `confidentialTransferFrom` gives the calling operator a transient permission on the amount it returns.
 `requestDiscloseEncryptedAmount` accepts any `FHE.isAllowed` permission, transient ones included. So in the same
@@ -129,7 +126,7 @@ requires a persistent permission for disclosure.
 #### 2. Confidential tokens sent to the wrapper's own address are stranded
 
 Rule `transferToTokenContractStrandsCollateral` (`callback.spec`) is
-[VIOLATED](https://prover.certora.com/output/6893/3292abf5f57446228346a204f06922d3?anonymousKey=130f18dd9e38adb7410be3eb7578c08995a37ade). Zama port finding TOK-21.
+[VIOLATED](https://prover.certora.com/output/6893/3292abf5f57446228346a204f06922d3?anonymousKey=130f18dd9e38adb7410be3eb7578c08995a37ade).
 
 A confidential transfer to `address(this)` succeeds. The wrapper has no way to move its own confidential balance, so
 those tokens can never be transferred or unwrapped again, and the underlying that backs them stays locked in the
@@ -266,6 +263,5 @@ that run, and the probes have not been re-run on the current version.
 - **Prover bounds.** Loops run at most 3 iterations, and hashed data is at most 1024 bytes (A14, A15).
 - **Harness.** Name, symbol and contract URI are empty (A16).
 
-Not covered: the features Zama added to its copy (deny-list, pausing, governance, observers and others, see
-[PORT.md](specs/ERC7984ERC20Wrapper/PORT.md)), name, symbol and contract URI, and fee-on-transfer or rebasing
-underlying tokens, which the wrapper documents as unsupported.
+Not covered: name, symbol and contract URI, and fee-on-transfer or rebasing underlying tokens, which the wrapper
+documents as unsupported.
